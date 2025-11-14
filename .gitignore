@@ -1,0 +1,4 @@
+ext/magnus_tokio/target
+tmp
+target
+lib/magnus_tokio/magnus_tokio.so
