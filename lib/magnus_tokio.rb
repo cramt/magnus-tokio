@@ -1,23 +1,29 @@
 require_relative "magnus_tokio/magnus_tokio"
 require "async"
 require "io/stream"
+require "async/scheduler"
 
-module MyThing
-  def try_it
-    Async do
-      fd = some_async_thing
-      io = IO.for_fd(fd, autoclose: true)
-      io.binmode
+scheduler = Async::Scheduler.new
+Fiber.set_scheduler(scheduler)
 
-      stream = IO::Stream(io)
-
-      while (chunk = stream.read_partial)
-        print "ruby got: #{chunk}"
-      end
-
-      puts "ruby: EOF"
+module Tokio
+  def async_wrap_io(io, task: Async::Task.current)
+    task.async do
+      IO.Stream(io).read
     end
   end
 
-  module_function :try_it
+  module_function :async_wrap_io
+
+  def main
+    Async do |parent|
+      5.times.map do |_|
+        parent.async do
+          async_wrap_io(sleep(2000))
+        end
+      end.map(&:wait)
+    end
+  end
+
+  module_function :main
 end
