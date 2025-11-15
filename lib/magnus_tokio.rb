@@ -7,19 +7,11 @@ scheduler = Async::Scheduler.new
 Fiber.set_scheduler(scheduler)
 
 module Tokio
-  def async_wrap_io(io, task: Async::Task.current)
-    task.async do
-      IO.Stream(io).read
-    end
-  end
-
-  module_function :async_wrap_io
-
   def main
     Async do |parent|
       5.times.map do |_|
         parent.async do
-          async_wrap_io(sleep(2000))
+          sleep(2000)
         end
       end.map(&:wait)
     end
