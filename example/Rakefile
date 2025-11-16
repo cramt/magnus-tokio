@@ -5,8 +5,8 @@ require "rake/extensiontask"
 
 task default: :test
 
-Rake::ExtensionTask.new("magnus_tokio") do |c|
-  c.lib_dir = "lib/magnus_tokio"
+Rake::ExtensionTask.new("magnus_tokio_example") do |c|
+  c.lib_dir = "lib/magnus_tokio_example"
 end
 
 task :dev do

@@ -1,0 +1,7 @@
+source "https://rubygems.org"
+
+gem "async"
+gem "io-stream"
+gem "rake"
+gem "rake-compiler"
+gem "rb_sys"

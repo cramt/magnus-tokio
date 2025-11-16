@@ -1,12 +1,11 @@
-require_relative "magnus_tokio/magnus_tokio"
+require_relative "magnus_tokio_example/magnus_tokio_example"
 require "async"
 require "io/stream"
 require "async/scheduler"
 
-scheduler = Async::Scheduler.new
-Fiber.set_scheduler(scheduler)
+Fiber.set_scheduler(Async::Scheduler.new)
 
-module Tokio
+module MyModule
   def main
     Async do |parent|
       5.times.map do |_|
@@ -15,6 +14,7 @@ module Tokio
         end
       end.map(&:wait)
     end
+    Fiber.scheduler.run
   end
 
   module_function :main

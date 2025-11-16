@@ -1,4 +1,4 @@
-ext/magnus_tokio/target
-tmp
+example/ext/magnus_tokio_example/target
+example/tmp
 target
-lib/magnus_tokio/magnus_tokio.so
+example/lib/magnus_tokio_example

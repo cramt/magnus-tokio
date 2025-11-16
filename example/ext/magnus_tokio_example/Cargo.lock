@@ -169,6 +169,18 @@ dependencies = [
  "bincode",
  "bytes",
  "magnus",
+ "serde",
+ "tokio",
+]
+
+[[package]]
+name = "magnus_tokio_example"
+version = "0.1.0"
+dependencies = [
+ "bincode",
+ "bytes",
+ "magnus",
+ "magnus_tokio",
  "once_cell",
  "serde",
  "tokio",

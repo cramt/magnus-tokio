@@ -1,0 +1,12 @@
+
+[package]
+name = "magnus_tokio"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+magnus = {version = "0.8", features = ["bytes"]}
+bytes = "1"
+tokio = { version = "1", features = ["rt", "net", "io-util"] }
+bincode = { version = "2", features = ["serde"]}
+serde = { version = "1", features = [] }
