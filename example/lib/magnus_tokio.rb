@@ -13,6 +13,16 @@ module MyModule
           sleep(2000)
         end
       end.map(&:wait)
+
+      parent.async do
+        begin
+          fail_after(1000).wait
+        rescue MyModule::Error => e
+          puts "Caught expected error: #{e.message}"
+          puts "Error class: #{e.class}"
+          puts "Error message from struct: #{e.message}"
+        end
+      end.wait
     end
     Fiber.scheduler.run
   end

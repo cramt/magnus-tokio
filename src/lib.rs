@@ -3,7 +3,7 @@ mod rb_error;
 use bincode::de::read::SliceReader;
 use magnus::error::Result;
 use magnus::value::{Lazy, Qnil, ReprValue};
-use magnus::{Error, IntoValue, Module, RModule, RString, Ruby, Value, kwargs};
+use magnus::{Class, IntoValue, RModule, RString, Ruby, Value, kwargs};
 use serde::Serialize;
 use serde::de::DeserializeOwned;
 use std::os::unix::io::AsRawFd;
@@ -20,14 +20,24 @@ static LAZY_INIT: Lazy<Qnil> = Lazy::new(|ruby| {
     ruby.qnil()
 });
 
-pub fn future_to_async_task<F>(runtime: &Runtime, future: F) -> Result<Value>
+pub fn future_result_to_async_task<F, T, E>(
+    runtime: &Runtime,
+    future: F,
+    exception_class: magnus::ExceptionClass,
+) -> Result<Value>
 where
-    F: Future + Send + 'static,
-    F::Output: Serialize + IntoValue + DeserializeOwned + Send + 'static,
+    F: Future<Output = std::result::Result<T, E>> + Send + 'static,
+    T: Serialize + IntoValue + DeserializeOwned + Send + 'static,
+    E: Serialize + DeserializeOwned + Send + 'static + IntoValue,
 {
-    fn fd_to_async_task<T>(ruby: &Ruby, fd: i32) -> Result<Value>
+    fn fd_to_async_task<T, E>(
+        ruby: &Ruby,
+        fd: i32,
+        opaque_exception_class: magnus::value::Opaque<magnus::ExceptionClass>,
+    ) -> Result<Value>
     where
         T: IntoValue + DeserializeOwned + Send + 'static,
+        E: DeserializeOwned + Send + 'static + IntoValue,
     {
         let block = ruby.proc_from_fn(move |ruby, _args, _block| {
             let io: Value = ruby
@@ -38,13 +48,21 @@ where
             let stream: Value = ruby.class_io().funcall("Stream", (io,))?;
             let string: RString = stream.funcall("read", ())?;
             let bytes = string.to_bytes();
-            let obj: T = bincode::serde::decode_from_reader(
+            let obj: std::result::Result<T, E> = bincode::serde::decode_from_reader(
                 SliceReader::new(bytes.as_ref()),
                 bincode::config::standard(),
             )
             .map_err(|x| rb_error::malformed_deserilization(&ruby, x.to_string()))?;
 
-            Ok(obj.into_value_with(ruby))
+            match obj {
+                Ok(val) => Ok(val.into_value_with(ruby)),
+                Err(err) => {
+                    let val = err.into_value_with(ruby);
+                    let exception_class = ruby.get_inner(opaque_exception_class);
+                    let exception = exception_class.new_instance((val,))?;
+                    Err(magnus::Error::from(exception))
+                }
+            }
         });
         let task: Value = ruby
             .module_kernel()
@@ -67,5 +85,19 @@ where
         r
     });
 
-    fd_to_async_task::<F::Output>(&ruby, receiver_fd)
+    fd_to_async_task::<T, E>(&ruby, receiver_fd, magnus::value::Opaque::from(exception_class))
+}
+
+pub fn future_to_async_task<F>(runtime: &Runtime, future: F) -> Result<Value>
+where
+    F: Future + Send + 'static,
+    F::Output: Serialize + IntoValue + DeserializeOwned + Send + 'static,
+{
+    use futures::FutureExt;
+    let ruby = Ruby::get().unwrap();
+    future_result_to_async_task(
+        runtime,
+        future.map(Ok::<_, String>),
+        ruby.exception_runtime_error(),
+    )
 }
