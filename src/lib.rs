@@ -3,7 +3,7 @@ mod rb_error;
 use bincode::de::read::SliceReader;
 use magnus::error::Result;
 use magnus::value::{Lazy, Qnil, ReprValue};
-use magnus::{Class, IntoValue, RModule, RString, Ruby, Value, kwargs};
+use magnus::{Exception, IntoValue, RModule, RString, Ruby, Value, kwargs};
 use serde::Serialize;
 use serde::de::DeserializeOwned;
 use std::os::unix::io::AsRawFd;
@@ -20,21 +20,13 @@ static LAZY_INIT: Lazy<Qnil> = Lazy::new(|ruby| {
     ruby.qnil()
 });
 
-pub fn future_result_to_async_task<F, T, E>(
-    runtime: &Runtime,
-    future: F,
-    exception_class: magnus::ExceptionClass,
-) -> Result<Value>
+pub fn future_result_to_async_task<F, T, E>(runtime: &Runtime, future: F) -> Result<Value>
 where
     F: Future<Output = std::result::Result<T, E>> + Send + 'static,
     T: Serialize + IntoValue + DeserializeOwned + Send + 'static,
     E: Serialize + DeserializeOwned + Send + 'static + IntoValue,
 {
-    fn fd_to_async_task<T, E>(
-        ruby: &Ruby,
-        fd: i32,
-        opaque_exception_class: magnus::value::Opaque<magnus::ExceptionClass>,
-    ) -> Result<Value>
+    fn fd_to_async_task<T, E>(ruby: &Ruby, fd: i32) -> Result<Value>
     where
         T: IntoValue + DeserializeOwned + Send + 'static,
         E: DeserializeOwned + Send + 'static + IntoValue,
@@ -58,8 +50,8 @@ where
                 Ok(val) => Ok(val.into_value_with(ruby)),
                 Err(err) => {
                     let val = err.into_value_with(ruby);
-                    let exception_class = ruby.get_inner(opaque_exception_class);
-                    let exception = exception_class.new_instance((val,))?;
+                    let exception =
+                        Exception::from_value(val).expect("Type returned isnt an error");
                     Err(magnus::Error::from(exception))
                 }
             }
@@ -85,7 +77,7 @@ where
         r
     });
 
-    fd_to_async_task::<T, E>(&ruby, receiver_fd, magnus::value::Opaque::from(exception_class))
+    fd_to_async_task::<T, E>(&ruby, receiver_fd)
 }
 
 pub fn future_to_async_task<F>(runtime: &Runtime, future: F) -> Result<Value>
@@ -94,10 +86,5 @@ where
     F::Output: Serialize + IntoValue + DeserializeOwned + Send + 'static,
 {
     use futures::FutureExt;
-    let ruby = Ruby::get().unwrap();
-    future_result_to_async_task(
-        runtime,
-        future.map(Ok::<_, String>),
-        ruby.exception_runtime_error(),
-    )
+    future_result_to_async_task(runtime, future.map(Ok::<_, String>))
 }
