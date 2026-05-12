@@ -3,11 +3,10 @@ use magnus::value::Lazy;
 use magnus::{Error, Module, Object, RModule, Value, function, method};
 use magnus_tokio::future_result_to_async_task;
 use once_cell::sync::Lazy as StdLazy;
-use serde::{Deserialize, Serialize};
 use std::time::Duration;
 use tokio::runtime::Runtime;
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone)]
 #[magnus::wrap(class = "MyModule::ExampleStruct", free_immediately, size)]
 struct ExampleStruct {
     sleep_time: i32,
@@ -19,7 +18,7 @@ impl ExampleStruct {
     }
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone)]
 #[magnus::wrap(class = "MyModule::ErrorStruct", free_immediately, size)]
 struct ErrorStruct {
     message: String,
@@ -46,26 +45,24 @@ static ERROR_CLASS: Lazy<magnus::ExceptionClass> = Lazy::new(|ruby| {
 static RUNTIME: StdLazy<Runtime> = StdLazy::new(|| Runtime::new().unwrap());
 
 fn sleep(milis: i32) -> Result<Value> {
-    let ruby = magnus::Ruby::get().unwrap();
     future_result_to_async_task(
         &*RUNTIME,
         async move {
             tokio::time::sleep(Duration::from_millis(milis.try_into().unwrap_or_default())).await;
             Ok::<_, ErrorStruct>(ExampleStruct { sleep_time: milis })
         },
-        ruby.get_inner(&ERROR_CLASS),
+        |ruby, err: ErrorStruct| Error::new(ruby.get_inner(&ERROR_CLASS), err.message()),
     )
 }
 
 fn fail_after(milis: i32) -> Result<Value> {
-    let ruby = magnus::Ruby::get().unwrap();
     future_result_to_async_task(
         &*RUNTIME,
         async move {
             tokio::time::sleep(Duration::from_millis(milis.try_into().unwrap_or_default())).await;
             Err::<ExampleStruct, _>(ErrorStruct::new("Something went wrong".to_string()))
         },
-        ruby.get_inner(&ERROR_CLASS),
+        |ruby, err: ErrorStruct| Error::new(ruby.get_inner(&ERROR_CLASS), err.message()),
     )
 }
 

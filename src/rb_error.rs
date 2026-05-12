@@ -8,27 +8,32 @@ static ERROR_MODULE: Lazy<ExceptionClass> = Lazy::new(|ruby| {
         .unwrap()
 });
 
-static CANT_MAKE_PIPE_MODULE: Lazy<ExceptionClass> = Lazy::new(|ruby| {
+static CANT_MAKE_PIPE: Lazy<ExceptionClass> = Lazy::new(|ruby| {
     ruby.get_inner(&ERROR_MODULE)
         .define_error("CantMakePipe", ruby.exception_standard_error())
         .unwrap()
 });
 
-static MALFORMED_DESERILIZATION: Lazy<ExceptionClass> = Lazy::new(|ruby| {
+static TASK_ABORTED: Lazy<ExceptionClass> = Lazy::new(|ruby| {
     ruby.get_inner(&ERROR_MODULE)
-        .define_error("MalformedDeseralization", ruby.exception_standard_error())
+        .define_error("TaskAborted", ruby.exception_standard_error())
         .unwrap()
 });
 
 pub fn cant_make_pipe(ruby: &Ruby, text: String) -> Error {
-    Error::new(ruby.get_inner(&CANT_MAKE_PIPE_MODULE), text)
+    Error::new(ruby.get_inner(&CANT_MAKE_PIPE), text)
 }
 
-pub fn malformed_deserilization(ruby: &Ruby, text: String) -> Error {
-    Error::new(ruby.get_inner(&MALFORMED_DESERILIZATION), text)
+pub fn task_aborted(ruby: &Ruby) -> Error {
+    Error::new(
+        ruby.get_inner(&TASK_ABORTED),
+        "tokio task did not produce a result (runtime dropped, task panicked, or pipe closed early)"
+            .to_string(),
+    )
 }
 
 pub fn init(ruby: &Ruby) {
     Lazy::force(&ERROR_MODULE, ruby);
-    Lazy::force(&CANT_MAKE_PIPE_MODULE, ruby);
+    Lazy::force(&CANT_MAKE_PIPE, ruby);
+    Lazy::force(&TASK_ABORTED, ruby);
 }
